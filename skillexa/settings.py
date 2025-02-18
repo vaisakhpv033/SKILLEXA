@@ -29,6 +29,8 @@ DEBUG = config("DEBUG", cast=bool)
 
 ALLOWED_HOSTS = ["*",]
 
+# default user model
+AUTH_USER_MODEL = "accounts.User"
 
 # Application definition
 
