@@ -29,6 +29,8 @@ DEBUG = config("DEBUG", cast=bool)
 
 ALLOWED_HOSTS = ["*",]
 
+# default user model
+AUTH_USER_MODEL = "accounts.User"
 
 # Application definition
 
@@ -42,6 +44,8 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'corsheaders',
+
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -145,7 +149,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
