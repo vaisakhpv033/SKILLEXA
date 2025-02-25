@@ -1,6 +1,8 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.core.validators import RegexValidator
 from django.db import models
+import random 
+from django.utils.timezone import now, timedelta
 
 class UserManager(BaseUserManager):
     """Custom user manager for handling user creation."""
@@ -142,3 +144,48 @@ class SocialProfile(models.Model):
     profile_url = models.URLField()
     created_at = models.DateTimeField(auto_now_add=True)
 
+
+class OtpVerification(models.Model):
+    """Model representing OTP verification for user registration and password reset."""
+    OTP_PURPOSES = (
+        ("registration", "Registration"),
+        ("password_reset", "Password Reset"),
+        ("email_change", "Email Change"),
+        ("other", "Other"),
+    )
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="otp_verification")
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    purpose = models.CharField(max_length=50, choices=OTP_PURPOSES, default="registration")
+
+    class Meta:
+        unique_together = ("user", "purpose")
+
+    def save(self, *args, **kwargs):
+        """Automatically generate otp and expiration time when creating a new entry"""
+
+        if not self.otp:
+            self.otp = str(random.randint(100000, 999999))
+        if not self.expires_at:
+            self.expires_at = now() + timedelta(minutes=10)
+
+        super().save(*args, **kwargs) 
+
+    def is_expired(self):
+        """Check if the OTP has expired"""
+        return now() > self.expires_at
+    
+    @classmethod
+    def generate_otp(cls, user, purpose="registration"):
+        """Create or update OTP for the given user and purpose"""
+        otp_entry, created = cls.objects.update_or_create(
+            user = user,
+            purpose = purpose,
+            defaults = {"otp": str(random.randint(100000, 999999)), "expires_at": now() + timedelta(minutes=10)}
+        )
+        return otp_entry.otp 
+    
+    def __str__(self):
+        return f"OTP for {self.user.email} - {self.otp} (Purpose: {self.purpose}, Expires: {self.expires_at})"
+        
