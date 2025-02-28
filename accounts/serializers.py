@@ -95,12 +95,15 @@ class OTPVerificationSerializer(serializers.Serializer):
 
         return {"message": "User verified successfully!"}
     
+class OTPResendSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    purpose = serializers.ChoiceField(choices=OtpVerification.OTP_PURPOSES, default="registration")
 
 class GoogleLoginSerializer(serializers.Serializer):
     idToken = serializers.CharField(required=True) 
     email = serializers.EmailField(required=True) 
-    name = serializers.CharField(required=False, allow_blank=True)  
-    
+    name = serializers.CharField(required=False, allow_blank=True)
+    role = serializers.IntegerField(required=False, allow_null=True) 
     
 class UserProfileListSerializer(serializers.ModelSerializer):
     class Meta:

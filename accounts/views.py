@@ -1,14 +1,15 @@
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import CustomTokenObtainPairSerializer, UserProfileListSerializer, UserSerializer, OTPVerificationSerializer, GoogleLoginSerializer
+from .serializers import CustomTokenObtainPairSerializer, UserProfileListSerializer, UserSerializer, OTPVerificationSerializer, GoogleLoginSerializer, OTPResendSerializer
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from .models import User
+from .models import User, OtpVerification
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
 from django.conf import settings
+from .tasks import send_otp_email
 
 GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
 
@@ -56,6 +57,31 @@ class AccountVerifyOTPView(generics.GenericAPIView):
             return Response({"message": "User verified successfully!"}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class ResendOTPView(generics.GenericAPIView):
+    """
+    API endpoint to resend OTP for registration, password reset, or email change.
+    """
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        serializer = OTPResendSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data["email"]
+            purpose = serializer.validated_data["purpose"]
+
+            try:
+                user = User.objects.get(email=email)
+                otp = OtpVerification.generate_otp(user, purpose)
+
+                # send otp 
+                send_otp_email.delay(email, otp)
+                return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 class GoogleLoginView(APIView):
     """ ✅ Class-Based View for Google Login """
     permission_classes = [AllowAny]
@@ -69,6 +95,7 @@ class GoogleLoginView(APIView):
         id_token_str = serializer.validated_data["idToken"]
         email = serializer.validated_data["email"]
         name = serializer.validated_data.get("name", "")
+        role = serializer.validated_data.get("role", User.STUDENT)
 
         try:
             # Validate Google Client ID
@@ -91,6 +118,7 @@ class GoogleLoginView(APIView):
                     "first_name": name.split()[0] if name else "",
                     "last_name": name.split()[1] if len(name.split()) > 1 else "",
                     "is_active": True,
+                    "role": role,
                 },
             )
 
