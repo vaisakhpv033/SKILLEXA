@@ -5,15 +5,16 @@ import random
 from unittest.mock import patch
 from django.conf import settings
 import jwt
+from django.urls import reverse
 
 class UserRegistrationTest(APITestCase):
     def setUp(self):
         """ Setup test data before running each test """
-        self.register_url = "/accounts/register/"
-        self.verify_otp_url = "/accounts/register/verify/"
+        self.register_url = reverse("register")
+        self.verify_otp_url = reverse("verify_otp")
 
     def test_user_registration_success(self):
-        """ ✅ Test successful user registration """
+        """ Test successful user registration """
         response = self.client.post(self.register_url, {
             "email": "test@example.com",
             "username": "testuser",
@@ -32,7 +33,7 @@ class UserRegistrationTest(APITestCase):
         self.assertEqual(OtpVerification.objects.count(), 1)  # OTP should be generated
 
     def test_user_registration_password_mismatch(self):
-        """ ❌ Test registration failure when passwords don't match """
+        """ Test registration failure when passwords don't match """
         response = self.client.post(self.register_url, {
             "email": "test@example.com",
             "username": "testuser",
@@ -68,7 +69,7 @@ class OTPVerificationTest(APITestCase):
         self.verify_otp_url = "/accounts/register/verify/"
 
     def test_otp_verification_success(self):
-        """ ✅ Test OTP verification and user activation """
+        """ Test OTP verification and user activation """
         response = self.client.post(self.verify_otp_url, {
             "email": "test@example.com",
             "otp": self.otp,
@@ -82,7 +83,7 @@ class OTPVerificationTest(APITestCase):
         self.assertEqual(OtpVerification.objects.count(), 0)  # OTP should be deleted after successful verification
 
     def test_otp_verification_expired(self):
-        """ ❌ Test expired OTP scenario """
+        """ Test expired OTP scenario """
         self.otp_entry.expires_at = self.otp_entry.created_at  # Force OTP to expire
         self.otp_entry.save()
 
@@ -96,7 +97,7 @@ class OTPVerificationTest(APITestCase):
         self.assertIn("otp", response.data)  # Should return "OTP has expired"
 
     def test_otp_verification_invalid(self):
-        """ ❌ Test incorrect OTP scenario """
+        """ Test incorrect OTP scenario """
         response = self.client.post(self.verify_otp_url, {
             "email": "test@example.com",
             "otp": "000000",  # Wrong OTP
@@ -107,15 +108,11 @@ class OTPVerificationTest(APITestCase):
         self.assertIn("otp", response.data)  # Should return "Invalid OTP"
 
 
-
-
-
-
 class GoogleLoginTestCase(APITestCase):
-    """ ✅ Unit Tests for Google Login API """
+    """ Unit Tests for Google Login API """
 
     def setUp(self):
-        self.url = "/accounts/google-login/"  # Ensure this matches your `urls.py`
+        self.url = reverse("google-login") 
         self.valid_id_token = "VALID_GOOGLE_ID_TOKEN"
         self.valid_email = "testuser@example.com"
         self.valid_name = "Test User"
@@ -128,7 +125,7 @@ class GoogleLoginTestCase(APITestCase):
 
     @patch("google.oauth2.id_token.verify_oauth2_token")
     def test_google_login_success(self, mock_verify):
-        """ ✅ Test successful Google login """
+        """ Test successful Google login """
         mock_verify.return_value = self.valid_google_response  # Mock valid response from Google
         
         response = self.client.post(self.url, {
@@ -145,7 +142,7 @@ class GoogleLoginTestCase(APITestCase):
 
     @patch("google.oauth2.id_token.verify_oauth2_token")
     def test_google_login_existing_user(self, mock_verify):
-        """ ✅ Test login with existing user """
+        """ Test login with existing user """
         user = User.objects.create_user(email=self.valid_email, username=self.google_user_id[:30], first_name="Old", last_name="User")
 
         mock_verify.return_value = self.valid_google_response
@@ -166,7 +163,7 @@ class GoogleLoginTestCase(APITestCase):
         self.assertEqual(decoded_token["user_id"], user.id)
 
     def test_google_login_missing_id_token(self):
-        """ ❌ Test missing ID token """
+        """ Test missing ID token """
         response = self.client.post(self.url, {
             "email": self.valid_email,
             "name": self.valid_name
@@ -176,7 +173,9 @@ class GoogleLoginTestCase(APITestCase):
 
     @patch("google.oauth2.id_token.verify_oauth2_token")
     def test_google_login_email_mismatch(self, mock_verify):
-        """ ❌ Test Google login fails when email doesn't match ID token """
+        """ 
+        Test Google login fails when email doesn't match ID token 
+        """
         mock_verify.return_value = self.valid_google_response
         
         response = self.client.post(self.url, {
@@ -190,7 +189,9 @@ class GoogleLoginTestCase(APITestCase):
 
     @patch("google.oauth2.id_token.verify_oauth2_token")
     def test_google_login_invalid_token(self, mock_verify):
-        """ ❌ Test invalid Google ID token """
+        """
+        Test invalid Google ID token 
+        """
         mock_verify.side_effect = ValueError("Invalid token")  # Simulate invalid token
 
         response = self.client.post(self.url, {
@@ -203,3 +204,88 @@ class GoogleLoginTestCase(APITestCase):
         self.assertIn("Invalid token", response.data["error"])
 
    
+class ResendOTPTestCase(APITestCase):
+    """
+    Test case for the OTP resend API
+    """
+
+    def setUp(self):
+        """
+        Set up test data before each test case
+        """
+        self.user = User.objects.create_user(
+            email="testuser@example.com",
+            username="testuser",
+            password="TestPass123",
+            first_name="Test",
+            last_name="User",
+            is_active=False,
+        )
+
+        self.url = reverse("resend-otp")
+        self.valid_payload = {"email": self.user.email, "purpose": "registration"}
+
+
+    @patch("accounts.models.OtpVerification.generate_otp")
+    @patch("accounts.tasks.send_otp_email.delay")
+    def resend_otp_success(self, mock_send_otp_email, mock_generate_otp):
+        """
+        Test successful otp resend
+        """
+        mock_generate_otp.return_value = "123456"
+
+        response = self.client.post(self.url, self.valid_payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "OTP sent successfully")
+        mock_generate_otp.assert_called_once_with(self.user, "registration")
+        mock_send_otp_email.assert_called_once_with(self.user.email, "123456")
+
+    
+    def test_resend_otp_user_not_found(self):
+        """
+        Test failure when email is not registered
+        """
+        payload = {"email": "nonexistent@example.com", "purpose": "registration"}
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "User not found")
+
+    def test_resend_otp_missing_email(self):
+        """
+        Test failure when email is missing
+        """
+
+        payload = {"purpose": "registration"}
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+    @patch("accounts.models.OtpVerification.generate_otp")
+    @patch("accounts.tasks.send_otp_email.delay")
+    def test_resend_otp_missing_purpose(self, mock_send_otp_email, mock_generate_otp):
+        """
+        Test that when purpose is missing, it defaults to 'registration'
+        """
+        mock_generate_otp.return_value = "123456"
+        
+        payload = {"email": self.user.email}
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "OTP sent successfully")
+        mock_generate_otp.assert_called_once_with(self.user, "registration")
+        mock_send_otp_email.assert_called_once_with(self.user.email, "123456")
+
+    def test_resend_otp_invalid_purpose(self):
+        """
+        Test failure when an invalid purpose is provided
+        """
+
+        payload = {"email": self.user.email, "purpose": "invalid purpose"}
+        response = self.client.post(self.url, payload) 
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("purpose", response.data)
