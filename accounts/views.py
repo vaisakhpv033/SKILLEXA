@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
 from django.conf import settings
 from .tasks import send_otp_email
+from .throttles import LoginAttemptThrottle, OTPRequestThrottle
 
 GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
 
@@ -20,6 +21,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     
     """
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = (LoginAttemptThrottle,)
 
 
 class RegisterUserView(generics.CreateAPIView):
@@ -63,6 +65,7 @@ class ResendOTPView(generics.GenericAPIView):
     API endpoint to resend OTP for registration, password reset, or email change.
     """
     permission_classes = (AllowAny,)
+    throttle_classes = (OTPRequestThrottle,)
 
     def post(self, request):
         serializer = OTPResendSerializer(data=request.data)
@@ -73,7 +76,7 @@ class ResendOTPView(generics.GenericAPIView):
             try:
                 user = User.objects.get(email=email)
                 otp = OtpVerification.generate_otp(user, purpose)
-
+                print(otp)
                 # send otp 
                 send_otp_email.delay(email, otp)
                 return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
