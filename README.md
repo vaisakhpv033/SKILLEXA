@@ -63,29 +63,6 @@ Skillexa is an e-learning platform API built using Django REST Framework (DRF). 
 
 The database schema is designed to support the e-learning platform's functionalities. You can view the full schema diagram [here](https://dbdiagram.io/d/skillexa-2-67ac964f263d6cf9a0e7513a).
 
-**Key Tables:**
-
-- `users`: Stores user information and merged profile details.
-- `social_profiles`: Manages user social media profiles.
-- `topics`: Hierarchical structure for course topics.
-- `courses`: Stores course information.
-- `enrollments`: Tracks student enrollments in courses.
-- `sections` and `lessons`: Manages course content structure.
-- `quizzes` and related tables: Handles quiz creation and student attempts.
-- `cart` and `wishlist`: Manages shopping cart and wishlist items.
-- `payments` and `orders`: Handles payment and order processing.
-- `wallets` and `wallet_transactions`: Manages user wallets and transactions.
-- `coupons` and related tables: Handles coupon creation and usage.
-
-**Enums:**
-
-- `user_role`: Defines user roles (student, instructor, admin, super_admin).
-- `course_level`: Defines course difficulty levels.
-- `payment_status`, `order_status`: Defines payment and order statuses.
-- `wallet_transaction_type`: Defines wallet transaction types.
-- `course_detail_type`: Defines course detail types.
-- `coupon_type`, `coupon_status`: Defines coupon types and statuses.
-
 ## Getting Started
 
 ### Prerequisites
@@ -104,3 +81,142 @@ The database schema is designed to support the e-learning platform's functionali
    ```bash
    git clone https://github.com/vaisakhpv033/SKILLEXA
    cd skillexa
+   ```
+
+2. Create a Virtual Environment (Recommended):
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Linux/macOS
+   venv\Scripts\activate  # On Windows
+   ```
+
+3. Install Dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in the project root and add your environment variables:
+
+```env
+SECRET_KEY=<your_secret_key>
+DEBUG=True/False
+DB_NAME=<your_db_name>
+DB_USER=<your_db_user>
+DB_PASSWORD=<your_db_password>
+DB_HOST=<your_db_host>
+CELERY_BROKER_URL=redis://<redis_host>:<redis_port>/0
+GOOGLE_CLIENT_ID=<your_google_client_id>
+GOOGLE_CLIENT_SECRET=<your_google_client_secret>
+EMAIL_HOST=<your_email_host>
+EMAIL_PORT=<your_email_port>
+EMAIL_HOST_USER=<your_email_user>
+EMAIL_HOST_PASSWORD=<your_email_password>
+DEFAULT_FROM_EMAIL=<your_default_from_email>
+```
+
+## Running the API
+
+### Start the Django Development Server
+
+```bash
+python manage.py runserver
+```
+
+### Start the Celery Worker
+
+#### On Linux/macOS
+```bash
+celery -A skillexa worker -l info
+```
+
+#### On Windows
+```bash
+celery -A skillexa worker --loglevel=info -P solo
+```
+
+### Start the Celery Beat Scheduler (if needed)
+
+```bash
+celery -A skillexa beat -l info
+```
+
+## API Endpoints
+
+### User Authentication
+
+- **User Registration:** `POST /api/register/`
+- **User Login:** `POST /api/login/`
+- **Google Sign-in:** `POST /api/google-signin/`
+- **OTP Verification:** `POST /api/verify-otp/`
+- **Resend OTP:** `POST /api/resend-otp/`
+- **User Profile:** `GET /api/profile/` (Requires JWT authentication)
+
+## Testing
+
+### Run Unit and Integration Tests
+
+```bash
+python manage.py test
+```
+
+### Run Specific Tests
+
+```bash
+python manage.py test <app_name>.tests.<ClassName>
+```
+
+### Run Specific Test Method
+
+```bash
+python manage.py test <app_name>.tests.<ClassName>.<test_method>
+```
+
+## Celery Configuration
+
+- Ensure Redis is running and properly configured in `.env`.
+- Start the Celery worker and beat scheduler as described in the "Running the API" section.
+
+## Rate Limiting
+
+- Global rate limits are configured in `settings.py`.
+- Endpoint-specific rate limits are defined in `accounts/throttling.py`.
+
+## Django Admin
+
+- Access the Django Admin Panel at `/admin/`.
+- Log in with your superuser credentials.
+- Manage users, social profiles, and OTP verifications.
+
+## Authentication
+
+- JWT authentication is used for API endpoints requiring user authentication.
+- JWT settings are configured in `settings.py` using `rest_framework_simplejwt`.
+
+## Email Configuration
+
+- Configure email settings in `.env`.
+- Ensure email service is properly set up for OTP email sending.
+
+## Google Sign-in
+
+- Configure Google Client ID and Secret in `.env`.
+- Ensure Google Cloud Platform project is set up for OAuth 2.0.
+
+## Contributing
+
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Commit your changes.
+4. Push to your branch.
+5. Create a pull request.
+
+## License
+
+This project is licensed under the MIT License.
+
