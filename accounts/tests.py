@@ -6,6 +6,7 @@ from unittest.mock import patch
 from django.conf import settings
 import jwt
 from django.urls import reverse
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class UserRegistrationTest(APITestCase):
     def setUp(self):
@@ -289,3 +290,52 @@ class ResendOTPTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("purpose", response.data)
+
+
+
+class RateLimitTestCase(APITestCase):
+    """
+    Test API rate limiting
+    """
+
+    def setUp(self):
+        """
+        setup a test user and generate JWT token
+        """
+        self.user = User.objects.create_user(
+            email="testuser@example.com",
+            username="testuser",
+            password="TestPass123",
+            first_name="Test",
+            last_name="User",
+            is_active=True,
+        )
+
+        refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(refresh.access_token)
+
+        self.api_url = reverse("profile")
+        self.api_url2 = reverse("login")
+
+    def test_authenticated_user_rate_limit(self):
+        """Test rate limiting for authenticated users"""
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.access_token}")
+
+        # Send requests up to the rate limit
+        for _ in range(2000):
+            response = self.client.get(self.api_url)
+            self.assertNotEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # One extra request should be blocked
+        response = self.client.get(self.api_url)
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_unauthenticated_user_rate_limit(self):
+        """Test rate limiting for unauthenticated users"""
+        for _ in range(200):
+            response = self.client.get(self.api_url2)
+            self.assertNotEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # One extra request should be blocked
+        response = self.client.get(self.api_url2)
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
