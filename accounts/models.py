@@ -176,6 +176,18 @@ class OtpVerification(models.Model):
         """Check if the OTP has expired"""
         return now() > self.expires_at
     
+    def can_resend_otp(self, cooldown_minutes=3):
+        """
+        Check if OTP can be resent based on cooldown time.
+
+        Args:
+            cooldown_minutes (int): Time in minutes before allowing resend.
+
+        Returns:
+            bool: True if the user can resend the OTP, False otherwise.
+        """
+        return now() - self.created_at >= timedelta(minutes=cooldown_minutes)
+    
     @classmethod
     def generate_otp(cls, user, purpose="registration"):
         """Create or update OTP for the given user and purpose"""

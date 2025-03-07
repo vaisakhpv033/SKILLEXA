@@ -1,6 +1,7 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 from .models import User, OtpVerification
+from django.contrib.auth.hashers import make_password
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -105,6 +106,56 @@ class GoogleLoginSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     role = serializers.IntegerField(required=False, allow_null=True) 
     
+
+class ForgotPasswordOtpSerializer(serializers.Serializer):
+    """Serializer for requesting a password reset via OTP"""
+    email = serializers.EmailField()
+
+    def validate(self, data):
+        """Check if email exists before sending OTP"""
+        if not User.objects.filter(email=data["email"], is_active=True).exists():
+            raise serializers.ValidationError({"email": "No active account found with this email"})
+        return data 
+    
+class ForgotPasswordSerializer(serializers.Serializer):
+    """Serializer for resetting password after OTP verification"""
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        """Validate Otp and password matching"""
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+        
+        try:
+            user = User.objects.get(email=data["email"])
+            otp_entry = OtpVerification.objects.get(user=user, purpose="password_reset")
+
+            if otp_entry.is_expired():
+                raise serializers.ValidationError({"otp": "OTP expired request a new one"})
+            
+            if otp_entry.otp != data["otp"]:
+                raise serializers.ValidationError({"otp": "Invalid OTP"})
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"email": "Invalid email"})
+        except OtpVerification.DoesNotExist:
+            raise serializers.ValidationError({"otp": "Invalid Otp"})
+        return data
+        
+    def save(self):
+        """
+        Update Password and delete OTP after successful verification
+        """
+        user = User.objects.get(email=self.validated_data['email'])
+        user.password = make_password(self.validated_data['new_password'])
+        user.save()
+
+        OtpVerification.objects.filter(user=user, purpose="password_reset").delete()
+        return user 
+        
+
 class UserProfileListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

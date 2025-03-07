@@ -159,6 +159,14 @@ REST_FRAMEWORK = {
     }
 }
 
+if DEBUG is True:
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+        'anon': '2000/day',
+        'user': '5000/day',
+        'otp_request': '500/hour',
+        'login_attempt': '500/hour',
+    }
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
