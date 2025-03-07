@@ -7,6 +7,8 @@ from django.conf import settings
 import jwt
 from django.urls import reverse
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils.timezone import now, timedelta
+from django.core.cache import cache
 
 class UserRegistrationTest(APITestCase):
     def setUp(self):
@@ -315,7 +317,7 @@ class RateLimitTestCase(APITestCase):
         self.access_token = str(refresh.access_token)
 
         self.api_url = reverse("profile")
-        self.api_url2 = reverse("login")
+        self.api_url2 = reverse("login") # this url also contain custom throttling protection. 
 
     def test_authenticated_user_rate_limit(self):
         """Test rate limiting for authenticated users"""
@@ -332,10 +334,151 @@ class RateLimitTestCase(APITestCase):
 
     def test_unauthenticated_user_rate_limit(self):
         """Test rate limiting for unauthenticated users"""
-        for _ in range(200):
-            response = self.client.get(self.api_url2)
+        for _ in range(20):
+            response = self.client.post(self.api_url2, {"email": "testuser@example.com", "password": "TestPass123"})
             self.assertNotEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
         # One extra request should be blocked
-        response = self.client.get(self.api_url2)
+        response = self.client.post(self.api_url2, {"email": "testuser@example.com", "password": "TestPass123"})
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+
+class ForgotPasswordTestCase(APITestCase):
+    """
+    Test Forgot Password OTP and Reset functionality, including throttling.
+    """
+
+    def setUp(self):
+        """
+        Setup test user.
+        """
+        self.user = User.objects.create_user(
+            email="testuser@example.com",
+            username="testuser",
+            password="TestPass123",
+            first_name="Test",
+            last_name="User",
+            is_active=True,
+        )
+
+        self.otp_url = reverse("forgot-otp")  # URL for requesting OTP
+        self.reset_url = reverse("forgot-password")  # URL for resetting password
+
+        cache.clear() # clearing cache to reset throttling cache before each test
+
+    def test_successful_otp_request(self):
+        """ Test successful OTP request for password reset"""
+        response = self.client.post(self.otp_url, {"email": self.user.email})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "OTP sent to your email")
+
+    def test_otp_request_non_existent_email(self):
+        """ Test OTP request with a non-existent email"""
+        response = self.client.post(self.otp_url, {"email": "fake@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+    def test_otp_request_for_inactive_user(self):
+        """ Test OTP request for an inactive user"""
+        self.user.is_active = False
+        self.user.save()
+
+        response = self.client.post(self.otp_url, {"email": self.user.email})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+    def test_successful_password_reset(self):
+        """ Test successful password reset using valid OTP"""
+        otp = OtpVerification.generate_otp(self.user, "password_reset")
+
+        response = self.client.post(self.reset_url, {
+            "email": self.user.email,
+            "otp": otp,
+            "new_password": "NewSecurePass123",
+            "confirm_password": "NewSecurePass123"
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "Password reset successful.")
+
+        # Ensure password is actually changed
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("NewSecurePass123"))
+
+    def test_password_reset_invalid_otp(self):
+        """ Test password reset with an incorrect OTP"""
+        response = self.client.post(self.reset_url, {
+            "email": self.user.email,
+            "otp": "999999",
+            "new_password": "NewPass123",
+            "confirm_password": "NewPass123"
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("otp", response.data)
+
+    def test_password_reset_expired_otp(self):
+        """ Test password reset with an expired OTP"""
+        OtpVerification.objects.create(
+            user=self.user,
+            otp="123456",
+            purpose="password_reset",
+            expires_at=now() - timedelta(minutes=1)  # Expired OTP
+        )
+
+        response = self.client.post(self.reset_url, {
+            "email": self.user.email,
+            "otp": "123456",
+            "new_password": "NewPass123",
+            "confirm_password": "NewPass123"
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("otp", response.data)
+
+    def test_password_reset_passwords_do_not_match(self):
+        """ Test password reset with non-matching passwords"""
+        otp = OtpVerification.generate_otp(self.user, "password_reset")
+
+        response = self.client.post(self.reset_url, {
+            "email": self.user.email,
+            "otp": otp,
+            "new_password": "NewPass123",
+            "confirm_password": "WrongPass123"
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.data)
+
+    def test_otp_request_throttling(self):
+        """ Test OTP request throttling (max 5 per hour)"""
+        for _ in range(5):  # Send 5 valid requests
+            response = self.client.post(self.otp_url, {"email": self.user.email})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 6th request should be rate-limited (HTTP 429)
+        response = self.client.post(self.otp_url, {"email": self.user.email})
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_password_reset_throttling(self):
+        """ Test password reset throttling"""
+        otp = OtpVerification.generate_otp(self.user, "password_reset")
+
+        for _ in range(5):  # Send 5 valid reset requests
+            response = self.client.post(self.reset_url, {
+                "email": self.user.email,
+                "otp": otp,
+                "new_password": "NewPass123",
+                "confirm_password": "NewPass123"
+            })
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 6th request should be rate-limited (HTTP 429)
+        response = self.client.post(self.reset_url, {
+            "email": self.user.email,
+            "otp": otp,
+            "new_password": "NewPass123",
+            "confirm_password": "NewPass123"
+        })
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)

@@ -1,5 +1,14 @@
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import CustomTokenObtainPairSerializer, UserProfileListSerializer, UserSerializer, OTPVerificationSerializer, GoogleLoginSerializer, OTPResendSerializer
+from .serializers import (
+    CustomTokenObtainPairSerializer, 
+    UserProfileListSerializer, 
+    UserSerializer, 
+    OTPVerificationSerializer, 
+    GoogleLoginSerializer, 
+    OTPResendSerializer,
+    ForgotPasswordOtpSerializer,
+    ForgotPasswordSerializer,
+)
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -9,7 +18,7 @@ from .models import User, OtpVerification
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
 from django.conf import settings
-from .tasks import send_otp_email
+from .tasks import send_otp_email, send_forgot_password_otp_email
 from .throttles import LoginAttemptThrottle, OTPRequestThrottle
 
 GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
@@ -86,7 +95,7 @@ class ResendOTPView(generics.GenericAPIView):
 
 
 class GoogleLoginView(APIView):
-    """ ✅ Class-Based View for Google Login """
+    """ API View for Google Login """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -145,6 +154,34 @@ class GoogleLoginView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ForgotPasswordOTPView(APIView):
+    permission_classes = (AllowAny,)
+    throttle_classes = (OTPRequestThrottle,)
+
+    def post(self, request):
+        serializer = ForgotPasswordOtpSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            user = User.objects.get(email=email)
+            otp = OtpVerification.generate_otp(user, "password_reset")
+
+            send_forgot_password_otp_email.delay(email, otp)
+
+            return Response({'message': "OTP sent to your email"}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class ForgotPasswordResetView(APIView):
+    permission_classes = (AllowAny,)
+    throttle_classes = (OTPRequestThrottle,)
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': "Password reset successful."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # to Retrieve user profile details 
