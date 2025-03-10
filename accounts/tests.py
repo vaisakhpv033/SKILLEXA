@@ -9,6 +9,122 @@ from django.urls import reverse
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.timezone import now, timedelta
 from django.core.cache import cache
+from django.contrib.auth.hashers import make_password
+from datetime import datetime
+
+class AuthenticationTestCase(APITestCase):
+    """ Unit tests for JWT authentication (Login & Refresh) """
+
+    def setUp(self):
+        """ Setup test users before each test """
+        self.login_url = reverse('login')
+        self.refresh_url = "/accounts/token/refresh/"
+
+        # Create a normal active user
+        self.user = User.objects.create(
+            email="user@example.com",
+            username="user1",
+            password=make_password("SecurePass123"),
+            role=User.STUDENT,
+            is_active=True,
+            is_blocked=False,
+        )
+
+        # Create a blocked user
+        self.blocked_user = User.objects.create(
+            email="blocked@example.com",
+            username="blocked_user",
+            password=make_password("BlockedPass123"),
+            role=User.STUDENT,
+            is_active=True,
+            is_blocked=True,  # Blocked user
+        )
+
+        # Create an inactive user (not activated)
+        self.inactive_user = User.objects.create(
+            email="inactive@example.com",
+            username="inactive_user",
+            password=make_password("InactivePass123"),
+            role=User.STUDENT,
+            is_active=False,  # Inactive user
+            is_blocked=False,
+        )
+
+    # Login Test Cases (Obtain Token)
+    
+    def test_successful_login(self):
+        """ Test successful login and token retrieval """
+        response = self.client.post(self.login_url, {
+            "email": "user@example.com",
+            "password": "SecurePass123"
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+
+    def test_blocked_user_cannot_login(self):
+        """ Test blocked users cannot log in (should return 403 Forbidden) """
+        response = self.client.post(self.login_url, {
+            "email": "blocked@example.com",
+            "password": "BlockedPass123"
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("detail", response.data)
+        self.assertEqual(response.data["detail"], "Your account has been blocked. Please contact support.")
+
+
+    def test_invalid_credentials(self):
+        """ Test login fails with invalid credentials """
+        response = self.client.post(self.login_url, {
+            "email": "user@example.com",
+            "password": "WrongPass"
+        })
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_inactive_user_cannot_login(self):
+        """ Test inactive users cannot log in """
+        response = self.client.post(self.login_url, {
+            "email": "inactive@example.com",
+            "password": "InactivePass123"
+        })
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # Refresh Token Test Cases
+    
+    def test_successful_token_refresh(self):
+        """ Test refreshing access token with a valid refresh token """
+        refresh = str(RefreshToken.for_user(self.user))  # Generate refresh token
+        response = self.client.post(self.refresh_url, {"refresh": refresh})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+
+    def test_blocked_user_cannot_refresh_token(self):
+        """ Test blocked users cannot refresh tokens (should return 403 Forbidden) """
+        refresh = str(RefreshToken.for_user(self.blocked_user))  # Generate refresh token for blocked user
+        response = self.client.post(self.refresh_url, {"refresh": refresh})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("detail", response.data)
+        self.assertEqual(response.data["detail"], "Your account has been blocked. Please contact support.")
+
+    def test_expired_refresh_token(self):
+        """ Test expired refresh token cannot be used """
+        refresh = RefreshToken.for_user(self.user)
+        refresh.set_exp(from_time=datetime.utcnow() - timedelta(days=1))  # Expire the token immediately
+        response = self.client.post(self.refresh_url, {"refresh": str(refresh)})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_tampered_refresh_token(self):
+        """ Test tampered refresh token fails """
+        refresh = str(RefreshToken.for_user(self.user))[:-1] + "X"  # Modify last character
+        response = self.client.post(self.refresh_url, {"refresh": refresh})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_invalid_refresh_token(self):
+        """ Test invalid refresh token fails """
+        response = self.client.post(self.refresh_url, {"refresh": "invalidtoken123"})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
 
 class UserRegistrationTest(APITestCase):
     def setUp(self):
