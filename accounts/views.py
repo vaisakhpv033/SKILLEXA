@@ -1,6 +1,7 @@
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .serializers import (
     CustomTokenObtainPairSerializer, 
+    CustomTokenRefreshSerializer,
     UserProfileListSerializer, 
     UserSerializer, 
     OTPVerificationSerializer, 
@@ -32,6 +33,13 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = (LoginAttemptThrottle,)
 
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """
+    API View for getting new access token.
+
+    """
+    serializer_class = CustomTokenRefreshSerializer
 
 class RegisterUserView(generics.CreateAPIView):
     """
