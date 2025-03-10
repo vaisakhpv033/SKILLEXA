@@ -185,7 +185,7 @@ class ForgotPasswordResetView(APIView):
 
 
 # to Retrieve user profile details 
-class UserProfileView(generics.RetrieveAPIView):
+class UserProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserProfileListSerializer
 

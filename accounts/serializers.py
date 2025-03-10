@@ -157,6 +157,9 @@ class ForgotPasswordSerializer(serializers.Serializer):
         
 
 class UserProfileListSerializer(serializers.ModelSerializer):
+    # prevents users from changing email and role
+    email = serializers.EmailField(read_only=True)
+    role = serializers.IntegerField(read_only=True)
     class Meta:
         model = User
         fields = ['username', 'email', 'role', 'first_name', 'last_name', 'phone_number', 'profile_picture', 'designation', 'bio' ]
