@@ -1,25 +1,26 @@
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .serializers import (
-    CustomTokenObtainPairSerializer, 
-    CustomTokenRefreshSerializer,
-    UserProfileListSerializer, 
-    UserSerializer, 
-    OTPVerificationSerializer, 
-    GoogleLoginSerializer, 
-    OTPResendSerializer,
-    ForgotPasswordOtpSerializer,
-    ForgotPasswordSerializer,
-)
+from django.conf import settings
+from google.auth.transport import requests
+from google.oauth2 import id_token
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from google.oauth2 import id_token
-from google.auth.transport import requests
-from .models import User, OtpVerification
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
-from django.conf import settings
-from .tasks import send_otp_email, send_forgot_password_otp_email
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+from .models import OtpVerification, User
+from .serializers import (
+    CustomTokenObtainPairSerializer,
+    CustomTokenRefreshSerializer,
+    ForgotPasswordOtpSerializer,
+    ForgotPasswordSerializer,
+    GoogleLoginSerializer,
+    OTPResendSerializer,
+    OTPVerificationSerializer,
+    UserProfileListSerializer,
+    UserSerializer,
+)
+from .tasks import send_forgot_password_otp_email, send_otp_email
 from .throttles import LoginAttemptThrottle, OTPRequestThrottle
 
 GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
@@ -28,8 +29,9 @@ GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
     API View for user login.
-    
+
     """
+
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = (LoginAttemptThrottle,)
 
@@ -39,7 +41,9 @@ class CustomTokenRefreshView(TokenRefreshView):
     API View for getting new access token.
 
     """
+
     serializer_class = CustomTokenRefreshSerializer
+
 
 class RegisterUserView(generics.CreateAPIView):
     """
@@ -47,6 +51,7 @@ class RegisterUserView(generics.CreateAPIView):
     Users will be created in an inactive state until they verify their OTP.
 
     """
+
     serializer_class = UserSerializer
     permission_classes = (AllowAny,)
 
@@ -55,8 +60,10 @@ class RegisterUserView(generics.CreateAPIView):
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"message": "User created successfully. Please check your email for OTP verification."},
-                status = status.HTTP_201_CREATED
+                {
+                    "message": "User created successfully. Please check your email for OTP verification."
+                },
+                status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -66,6 +73,7 @@ class AccountVerifyOTPView(generics.GenericAPIView):
     API View for verifying OTP sent to user's email.
 
     """
+
     serializer_class = OTPVerificationSerializer
     permission_classes = (AllowAny,)
 
@@ -73,7 +81,9 @@ class AccountVerifyOTPView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"message": "User verified successfully!"}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "User verified successfully!"}, status=status.HTTP_200_OK
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -81,6 +91,7 @@ class ResendOTPView(generics.GenericAPIView):
     """
     API endpoint to resend OTP for registration, password reset, or email change.
     """
+
     permission_classes = (AllowAny,)
     throttle_classes = (OTPRequestThrottle,)
 
@@ -94,16 +105,21 @@ class ResendOTPView(generics.GenericAPIView):
                 user = User.objects.get(email=email)
                 otp = OtpVerification.generate_otp(user, purpose)
                 print(otp)
-                # send otp 
+                # send otp
                 send_otp_email.delay(email, otp)
-                return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
+                return Response(
+                    {"message": "OTP sent successfully"}, status=status.HTTP_200_OK
+                )
             except User.DoesNotExist:
-                return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST
+                )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class GoogleLoginView(APIView):
-    """ API View for Google Login """
+    """API View for Google Login"""
+
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -120,13 +136,20 @@ class GoogleLoginView(APIView):
         try:
             # Validate Google Client ID
             if not GOOGLE_CLIENT_ID:
-                return Response({"error": "Google Client ID is not configured."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(
+                    {"error": "Google Client ID is not configured."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
             # Verify Google ID Token
-            idinfo = id_token.verify_oauth2_token(id_token_str, requests.Request(), GOOGLE_CLIENT_ID)
+            idinfo = id_token.verify_oauth2_token(
+                id_token_str, requests.Request(), GOOGLE_CLIENT_ID
+            )
 
             if idinfo["email"] != email:
-                return Response({"error": "Email mismatch."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "Email mismatch."}, status=status.HTTP_400_BAD_REQUEST
+                )
 
             user_id = idinfo["sub"]
 
@@ -160,8 +183,11 @@ class GoogleLoginView(APIView):
 
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class ForgotPasswordOTPView(APIView):
@@ -171,15 +197,18 @@ class ForgotPasswordOTPView(APIView):
     def post(self, request):
         serializer = ForgotPasswordOtpSerializer(data=request.data)
         if serializer.is_valid():
-            email = serializer.validated_data['email']
+            email = serializer.validated_data["email"]
             user = User.objects.get(email=email)
             otp = OtpVerification.generate_otp(user, "password_reset")
 
             send_forgot_password_otp_email.delay(email, otp)
 
-            return Response({'message': "OTP sent to your email"}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "OTP sent to your email"}, status=status.HTTP_200_OK
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+
 class ForgotPasswordResetView(APIView):
     permission_classes = (AllowAny,)
     throttle_classes = (OTPRequestThrottle,)
@@ -188,11 +217,13 @@ class ForgotPasswordResetView(APIView):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({'message': "Password reset successful."}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Password reset successful."}, status=status.HTTP_200_OK
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# to Retrieve user profile details 
+# to Retrieve user profile details
 class UserProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserProfileListSerializer
