@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, OtpVerification, SocialProfile
+
+from .models import OtpVerification, SocialProfile, User
 
 # Register your models here.
 
@@ -10,7 +11,14 @@ class CustomUserAdmin(UserAdmin):
     list_filter = ()
     fieldsets = ()
 
-    list_display = ("email", "first_name", "last_name", "role", "is_active", "is_superuser")
+    list_display = (
+        "email",
+        "first_name",
+        "last_name",
+        "role",
+        "is_active",
+        "is_superuser",
+    )
     ordering = ("-date_joined",)
 
 
