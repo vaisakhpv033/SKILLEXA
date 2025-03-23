@@ -47,6 +47,10 @@ INSTALLED_APPS = [
     'corsheaders',
 
     'accounts',
+    'custom_admin',
+    'courses',
+    'students',
+    'instructor',
 ]
 
 MIDDLEWARE = [
