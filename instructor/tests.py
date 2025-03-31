@@ -1,11 +1,14 @@
+from unittest.mock import patch
+
 from django.contrib.auth.hashers import check_password
 from django.urls import reverse
 from django.utils.timezone import now, timedelta
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
-from unittest.mock import patch
+
 from accounts.models import OtpVerification, User
+
 
 class InstructorResetPasswordTestCase(APITestCase):
     """Unit tests for instructor password reset API"""
@@ -169,12 +172,11 @@ class InstructorResetPasswordTestCase(APITestCase):
         self.assertIn("confirm_password", response.data)
 
 
-
 class InstructorResetPasswordOTPTestCase(APITestCase):
-    """ Unit tests for Instructor Reset Password OTP API """
+    """Unit tests for Instructor Reset Password OTP API"""
 
     def setUp(self):
-        """ Create test users before each test """
+        """Create test users before each test"""
         self.instructor = User.objects.create_user(
             email="instructor@example.com",
             username="instructor1",
@@ -212,20 +214,20 @@ class InstructorResetPasswordOTPTestCase(APITestCase):
         self.otp_url = reverse("instructor-reset-otp")
 
     def authenticate_as_instructor(self):
-        """ Helper method to authenticate as instructor """
+        """Helper method to authenticate as instructor"""
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.instructor_token}")
 
     def authenticate_as_student(self):
-        """ Helper method to authenticate as student """
+        """Helper method to authenticate as student"""
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.student_token}")
 
     def authenticate_as_admin(self):
-        """ Helper method to authenticate as admin """
+        """Helper method to authenticate as admin"""
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.admin_token}")
 
     @patch("accounts.tasks.send_email.delay")
     def test_successful_otp_generation(self, mock_send_email):
-        """ Instructor can successfully request OTP """
+        """Instructor can successfully request OTP"""
         self.authenticate_as_instructor()
 
         response = self.client.post(self.otp_url)
@@ -233,18 +235,22 @@ class InstructorResetPasswordOTPTestCase(APITestCase):
         self.assertEqual(response.data["message"], "OTP sent to your email")
 
         # Ensure OTP is stored in the database
-        self.assertTrue(OtpVerification.objects.filter(user=self.instructor, purpose="password_reset").exists())
+        self.assertTrue(
+            OtpVerification.objects.filter(
+                user=self.instructor, purpose="password_reset"
+            ).exists()
+        )
 
         # Ensure Celery email task is triggered
         mock_send_email.assert_called_once()
 
     def test_unauthorized_user_cannot_request_otp(self):
-        """ Unauthenticated users cannot request OTP """
+        """Unauthenticated users cannot request OTP"""
         response = self.client.post(self.otp_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_non_instructor_cannot_request_otp(self):
-        """ Non-instructor users (students/admins) cannot request OTP """
+        """Non-instructor users (students/admins) cannot request OTP"""
         self.authenticate_as_student()
 
         response = self.client.post(self.otp_url)
@@ -256,7 +262,7 @@ class InstructorResetPasswordOTPTestCase(APITestCase):
 
     @patch("accounts.tasks.send_email.delay")
     def test_throttle_limit_on_otp_request(self, mock_send_email):
-        """ OTP request is rate-limited if sent too many times """
+        """OTP request is rate-limited if sent too many times"""
         self.authenticate_as_instructor()
 
         # Simulate sending multiple requests
@@ -269,19 +275,23 @@ class InstructorResetPasswordOTPTestCase(APITestCase):
 
     @patch("accounts.tasks.send_email.delay")
     def test_otp_is_regenerated_on_multiple_requests(self, mock_send_email):
-        """ New OTP should be generated on multiple requests """
+        """New OTP should be generated on multiple requests"""
         self.authenticate_as_instructor()
 
         # Request OTP first time
         response = self.client.post(self.otp_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        otp_1 = OtpVerification.objects.get(user=self.instructor, purpose="password_reset").otp
+        otp_1 = OtpVerification.objects.get(
+            user=self.instructor, purpose="password_reset"
+        ).otp
 
         # Request OTP again
         response = self.client.post(self.otp_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        otp_2 = OtpVerification.objects.get(user=self.instructor, purpose="password_reset").otp
+        otp_2 = OtpVerification.objects.get(
+            user=self.instructor, purpose="password_reset"
+        ).otp
 
         self.assertNotEqual(otp_1, otp_2)  # Ensure a new OTP is generated

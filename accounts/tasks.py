@@ -24,9 +24,10 @@ def send_forgot_password_otp_email(email, otp):
 
     send_mail(subject, message, sender_email, recipient_list)
 
+
 @shared_task
 def send_email(email, subject, message):
-    sender_email=DEFAULT_FROM_EMAIL
+    sender_email = DEFAULT_FROM_EMAIL
     recipient_list = [email]
 
     send_mail(subject, message, sender_email, recipient_list)

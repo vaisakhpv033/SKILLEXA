@@ -1,13 +1,24 @@
+import random
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.core.validators import RegexValidator
 from django.db import models
-import random 
 from django.utils.timezone import now, timedelta
+
 
 class UserManager(BaseUserManager):
     """Custom user manager for handling user creation."""
 
-    def create_user(self, first_name, last_name, username, email, role=None, password=None, **extra_fields):
+    def create_user(
+        self,
+        first_name,
+        last_name,
+        username,
+        email,
+        role=None,
+        password=None,
+        **extra_fields,
+    ):
         """
         Create and return a regular user.
 
@@ -32,25 +43,26 @@ class UserManager(BaseUserManager):
 
         if not username:
             raise ValueError("User must have an username")
-        
+
         if role is None:
             role = self.model.STUDENT
-
 
         user = self.model(
             email=self.normalize_email(email),
             username=username,
             first_name=first_name,
             last_name=last_name,
-            role = role,
-            **extra_fields
+            role=role,
+            **extra_fields,
         )
 
         user.set_password(password)
         user.save(using=self.db)
         return user
 
-    def create_superuser(self, first_name, last_name, username, email, password=None, **extra_fields):
+    def create_superuser(
+        self, first_name, last_name, username, email, password=None, **extra_fields
+    ):
         """
         Create and return a superuser with admin privileges.
 
@@ -80,15 +92,14 @@ class UserManager(BaseUserManager):
         )
         return user
 
+
 # validators
 username_validator = RegexValidator(
-    r'^[a-zA-Z0-9_]+$', 
-    'Usernames can only contain letters, numbers and underscores.'
+    r"^[a-zA-Z0-9_]+$", "Usernames can only contain letters, numbers and underscores."
 )
 
 name_validator = RegexValidator(
-    r'^[a-zA-Z\s]+$',
-    'Enter a Valid name (Only alphabets and spaces)'
+    r"^[a-zA-Z\s]+$", "Enter a Valid name (Only alphabets and spaces)"
 )
 
 
@@ -98,15 +109,13 @@ class User(AbstractBaseUser):
     STUDENT = 1
     INSTRUCTOR = 2
     ADMIN = 3
-    ROLE_CHOICE = (
-        (STUDENT, "Student"),
-        (INSTRUCTOR, "Instructor"),
-        (ADMIN, "Admin")
-    )
+    ROLE_CHOICE = ((STUDENT, "Student"), (INSTRUCTOR, "Instructor"), (ADMIN, "Admin"))
 
     first_name = models.CharField(max_length=50, validators=[name_validator])
     last_name = models.CharField(max_length=50, validators=[name_validator])
-    username = models.CharField(max_length=50, unique=True, validators=[username_validator])
+    username = models.CharField(
+        max_length=50, unique=True, validators=[username_validator]
+    )
     email = models.EmailField(max_length=100, unique=True)
     phone_number = models.CharField(max_length=12, blank=True, null=True)
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICE, default=STUDENT)
@@ -127,6 +136,10 @@ class User(AbstractBaseUser):
 
     objects = UserManager()
 
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
     def __str__(self):
         return self.email
 
@@ -139,8 +152,10 @@ class User(AbstractBaseUser):
 
 class SocialProfile(models.Model):
     """Model representing a user's social media profile."""
-    
-    user = models.ForeignKey("accounts.User", verbose_name="social_profiles", on_delete=models.CASCADE)
+
+    user = models.ForeignKey(
+        "accounts.User", verbose_name="social_profiles", on_delete=models.CASCADE
+    )
     platform = models.CharField(max_length=250)
     profile_url = models.URLField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -148,17 +163,22 @@ class SocialProfile(models.Model):
 
 class OtpVerification(models.Model):
     """Model representing OTP verification for user registration and password reset."""
+
     OTP_PURPOSES = (
         ("registration", "Registration"),
         ("password_reset", "Password Reset"),
         ("email_change", "Email Change"),
         ("other", "Other"),
     )
-    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="otp_verification")
+    user = models.ForeignKey(
+        "accounts.User", on_delete=models.CASCADE, related_name="otp_verification"
+    )
     otp = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
-    purpose = models.CharField(max_length=50, choices=OTP_PURPOSES, default="registration")
+    purpose = models.CharField(
+        max_length=50, choices=OTP_PURPOSES, default="registration"
+    )
 
     class Meta:
         unique_together = ("user", "purpose")
@@ -171,12 +191,12 @@ class OtpVerification(models.Model):
         if not self.expires_at:
             self.expires_at = now() + timedelta(minutes=10)
 
-        super().save(*args, **kwargs) 
+        super().save(*args, **kwargs)
 
     def is_expired(self):
         """Check if the OTP has expired"""
         return now() > self.expires_at
-    
+
     def can_resend_otp(self, cooldown_minutes=3):
         """
         Check if OTP can be resent based on cooldown time.
@@ -188,17 +208,19 @@ class OtpVerification(models.Model):
             bool: True if the user can resend the OTP, False otherwise.
         """
         return now() - self.created_at >= timedelta(minutes=cooldown_minutes)
-    
+
     @classmethod
     def generate_otp(cls, user, purpose="registration"):
         """Create or update OTP for the given user and purpose"""
         otp_entry, created = cls.objects.update_or_create(
-            user = user,
-            purpose = purpose,
-            defaults = {"otp": str(random.randint(100000, 999999)), "expires_at": now() + timedelta(minutes=10)}
+            user=user,
+            purpose=purpose,
+            defaults={
+                "otp": str(random.randint(100000, 999999)),
+                "expires_at": now() + timedelta(minutes=10),
+            },
         )
-        return otp_entry.otp 
-    
+        return otp_entry.otp
+
     def __str__(self):
         return f"OTP for {self.user.email} - {self.otp} (Purpose: {self.purpose}, Expires: {self.expires_at})"
-        

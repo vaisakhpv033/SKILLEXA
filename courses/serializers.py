@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import Course, CourseDetail, Topics, PriceLevel
+
+from .models import Course, CourseDetail, PriceLevel, Topics
+
 
 class CourseDetailSerializer(serializers.ModelSerializer):
     """
@@ -11,25 +13,44 @@ class CourseDetailSerializer(serializers.ModelSerializer):
         fields = ["id", "detail_type", "description"]
         read_only_fields = ["id"]
 
+
 class CourseSerializer(serializers.ModelSerializer):
     """
     Serializer for Course model.
     """
-    
+
     details = CourseDetailSerializer(many=True, required=False)
     topic_name = serializers.CharField(source="topic.name", read_only=True)
+    instructor_name = serializers.CharField(
+        source="instructor.full_name", read_only=True
+    )
     price_id = serializers.PrimaryKeyRelatedField(
         queryset=PriceLevel.objects.filter(deleted_at__isnull=True),
         write_only=True,
-        required=True
+        required=True,
     )
 
     class Meta:
         model = Course
         fields = [
-            "id", "title", "subtitle", "description", "thumbnail", "trailer",
-            "language", "level", "price", "price_id", "status", "topic", "topic_name",
-            "created_at", "updated_at", "details"
+            "id",
+            "title",
+            "subtitle",
+            "description",
+            "thumbnail",
+            "trailer",
+            "language",
+            "level",
+            "price",
+            "price_id",
+            "status",
+            "topic",
+            "topic_name",
+            "instructor",
+            "instructor_name",
+            "created_at",
+            "updated_at",
+            "details",
         ]
         read_only_fields = ["id", "created_at", "updated_at", "instructor", "price"]
 
@@ -89,7 +110,15 @@ class TopicsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Topics
-        fields = ["id", "name", "parent", "score", "created_at", "updated_at", "subcategories"]
+        fields = [
+            "id",
+            "name",
+            "parent",
+            "score",
+            "created_at",
+            "updated_at",
+            "subcategories",
+        ]
         read_only_fields = ["id", "created_at", "updated_at", "subcategories"]
 
     def get_subcategories(self, obj):
@@ -102,10 +131,9 @@ class TopicsSerializer(serializers.ModelSerializer):
         if Topics.objects.filter(name__iexact=value).exists():
             raise serializers.ValidationError("A topic with this name already exists.")
         return value
-    
+
     def validate_parent(self, value):
         """Ensure a topic is not assigned as its own parent."""
         if self.instance and self.instance.id == value.id:
             raise serializers.ValidationError("A category cannot be its own parent.")
         return value
-
