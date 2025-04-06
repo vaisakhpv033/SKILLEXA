@@ -6,7 +6,9 @@ from rest_framework.exceptions import ValidationError
 from cart.models import Cart
 from .models import Order, OrderItem
 from courses.models import Course
-
+from skillexa.settings import RZP_KEY_SECRET
+import hmac
+import hashlib
 
 
 
@@ -41,3 +43,18 @@ def create_order(request):
     
     return order
 
+
+def verify_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature):
+    # Use the key_secret from your Razorpay account
+    key_secret = RZP_KEY_SECRET
+    message = f"{razorpay_order_id}|{razorpay_payment_id}"
+
+    # Generate the HMAC SHA256 signature
+    generated_signature = hmac.new(
+        key_secret.encode(),
+        message.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    # Compare signatures
+    return generated_signature == razorpay_signature
