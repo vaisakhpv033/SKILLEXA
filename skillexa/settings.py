@@ -179,7 +179,7 @@ if DEBUG is True:
     }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 
     'ROTATE_REFRESH_TOKENS': False,
@@ -211,3 +211,7 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
 # google credentials
 GOOGLE_CLIENT_ID=config("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET=config("GOOGLE_CLIENT_SECRET")
+
+# Razorpay
+RZP_KEY_ID = config("RZP_KEY_ID")
+RZP_KEY_SECRET = config("RZP_KEY_SECRET")
