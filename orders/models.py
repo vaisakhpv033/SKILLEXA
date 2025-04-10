@@ -202,7 +202,7 @@ class OrderItem(models.Model):
     admin_earning = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
-
+    is_unlocked = models.BooleanField(default=False)
     is_refunded = models.BooleanField(default=False)
     refund_amount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
@@ -267,12 +267,13 @@ class OrderItem(models.Model):
         Unlock instructor earnings after 14 days if no refund was initiated
         """
 
-        if not self.is_refunded and timezone.now() >= self.locked_until:
+        if not self.is_refunded and not self.is_unlocked and timezone.now() >= self.locked_until:
             self.instructor.wallet.locked_balance -= self.instructor_earning
             self.instructor.wallet.deposit(
                 self.instructor_earning,
                 description=f"{self.course_title} purchased by {self.order.user}",
             )
+            self.is_unlocked = True
             self.save()
 
     def __str__(self):

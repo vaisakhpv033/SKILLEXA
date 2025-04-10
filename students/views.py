@@ -10,6 +10,9 @@ from accounts.throttles import OTPRequestThrottle
 from .permissions import IsStudent
 from .serializers import StudentResetPasswordSerializer
 
+from .models import Enrollments
+from .serializers import EnrolledCourseSerializer
+
 
 class StudentResetPasswordOTPView(APIView):
     """API for Instructors to request OTP for password reset"""
@@ -49,3 +52,15 @@ class StudentResetPasswordView(generics.GenericAPIView):
                 {"message": "Password Reset Successfully"}, status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+class EnrolledCoursesView(APIView):
+    permission_classes = [IsStudent]
+
+    def get(self, request):
+        user = request.user
+        enrollments = Enrollments.objects.select_related("course").filter(student=user)
+        serializer = EnrolledCourseSerializer(enrollments, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

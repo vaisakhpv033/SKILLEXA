@@ -8,7 +8,9 @@ from rest_framework.exceptions import ValidationError
 from .models import Payments, Order
 from cart.models import Cart
 from students.permissions import IsStudent
-from .serializers import CreateOrderSerializer, OrderSerializer
+from .serializers import CreateOrderSerializer, OrderSerializer, StudentOrderHistorySerializer, AdminOrderHistorySerializer
+from students.models import Enrollments
+from rest_framework import generics, permissions
 
 client = razorpay.Client(auth=(RZP_KEY_ID, RZP_KEY_SECRET))
 
@@ -99,11 +101,46 @@ class VerifyOrderView(APIView):
         order.status = Order.OrderStatus.COMPLETED
         order.save()
 
-        # Re-trigger save logic for each order item (earnings etc)
+        # Re-trigger save logic for each order item (earnings etc) and save the enrolled courses
         for item in order.items.all():
+            Enrollments.objects.create(
+                student=request.user,
+                course=item.course,
+            )
             item.save()
-        
+
         # Clear the cart after successful payment
         Cart.objects.filter(student=request.user).delete()
         
+        # Add the earnings to the instructor's account
+        for item in order.items.all():
+            item.instructor.wallet.deposit_locked(item.instructor_earning, description=f"Earnings from {item.course.title} course", order=order)
+        
+        
         return Response({"message": "Payment verified successfully"}, status=status.HTTP_200_OK)
+     
+
+
+
+class StudentOrderHistoryView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = StudentOrderHistorySerializer
+
+    def get_queryset(self):
+        return (
+            Order.objects
+            .select_related("payment")
+            .prefetch_related("items", "items__course")
+            .filter(user=self.request.user, status=Order.OrderStatus.COMPLETED)
+            .order_by("-created_at")
+        )
+
+
+
+
+class AdminOrderHistoryView(generics.ListAPIView):
+    serializer_class = AdminOrderHistorySerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    def get_queryset(self):
+        return Order.objects.exclude(status=Order.OrderStatus.PENDING).select_related("user", "payment").prefetch_related("items", "items__course", "items__instructor")

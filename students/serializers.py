@@ -3,6 +3,8 @@ from rest_framework import serializers
 
 from accounts.models import OtpVerification
 
+from .models import Enrollments
+
 
 class StudentResetPasswordSerializer(serializers.Serializer):
     otp = serializers.CharField(max_length=6)
@@ -42,3 +44,21 @@ class StudentResetPasswordSerializer(serializers.Serializer):
         OtpVerification.objects.filter(user=user, purpose="password_reset").delete()
 
         return {"message": "Password reset successfully"}
+
+
+
+
+class EnrolledCourseSerializer(serializers.ModelSerializer):
+    course_title = serializers.CharField(source="course.title", read_only=True)
+    course_subtitle = serializers.CharField(source="course.subtitle", read_only=True)
+    course_thumbnail = serializers.URLField(source="course.thumbnail", read_only=True)
+    course_price = serializers.DecimalField(source="course.price", max_digits=10, decimal_places=2, read_only=True)
+    course_level = serializers.CharField(source="course.get_level_display", read_only=True)
+    topic_name = serializers.CharField(source="course.topic.name", read_only=True)
+    instructor_name = serializers.CharField(
+        source="instructor.full_name", read_only=True
+    )
+
+    class Meta:
+        model = Enrollments
+        fields = ["id", "course_title", "course_subtitle", "instructor_name", "course_level", "topic_name", "course_thumbnail", "course_price", "enrolled_at"]

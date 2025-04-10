@@ -28,7 +28,7 @@ class Wallet(models.Model):
     - refund(): Credits funds back to the wallet in case of a refund.
     """
 
-    user = models.ForeignKey(
+    user = models.OneToOneField(
         "accounts.User", on_delete=models.CASCADE, related_name="wallet"
     )
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -88,6 +88,33 @@ class Wallet(models.Model):
             WalletTransaction.TransactionChoices.DEPOSIT,
             amount=amount,
             description=description,
+        )
+        return True
+
+    def deposit_locked(self, amount, description="Locked deposit", order=None):
+        """
+        Adds funds to the locked balance of the wallet.
+
+        Args:
+            amount (Decimal): Amount to deposit.
+            description (str): Optional description for the transaction.
+
+        Raises:
+            ValueError: If the amount is negative or zero.
+
+        Returns:
+            bool: True if deposit is successful.
+        """
+
+        if amount <= 0:
+            raise ValueError("amount must be positive")
+        self.locked_balance += amount
+        self.save()
+        self.add_transaction(
+            WalletTransaction.TransactionChoices.DEPOSIT,
+            amount=amount,
+            description=description,
+            order=order,
         )
         return True
 
