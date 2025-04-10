@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
+
 class Topics(models.Model):
     """
     Represents course categories and subcategories.
@@ -29,7 +30,7 @@ class Topics(models.Model):
 
     class Meta:
         verbose_name_plural = "Topics"
-        ordering = ['id']
+        ordering = ["id"]
 
     def __str__(self):
         return self.name
@@ -60,7 +61,7 @@ class PriceLevel(models.Model):
 
     def __str__(self):
         return f"{self.name} - ₹{self.amount}"
-    
+
     def delete(self, *args, **kwargs):
         """Soft delete instead of actual deletion."""
         self.deleted_at = timezone.now()
@@ -93,7 +94,7 @@ class Course(models.Model):
         PENDING = 1, "Pending"
         PUBLISHED = 2, "Published"
         ARCHIVED = 3, "Archived"
-    
+
     class LanguageChoices(models.TextChoices):
         ENGLISH = "EN", "English"
         SPANISH = "ES", "Spanish"

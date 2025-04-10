@@ -35,7 +35,7 @@ class AdminUserActionsTestCase(APITestCase):
         self.block_url = f"/api/admin/users/{self.regular_user.id}/block/"
         self.unblock_url = f"/api/admin/users/{self.regular_user.id}/unblock/"
         self.activate_url = f"/api/admin/users/{self.regular_user.id}/activate/"
-        self.non_existent_url = "/api/admin/users/9999/block/"  # ✅ Non-existent user
+        self.non_existent_url = "/api/admin/users/9999/block/"  # Non-existent user
 
     def authenticate_as_admin(self):
         """Helper method to authenticate as admin"""
@@ -129,10 +129,10 @@ class AdminUserActionsTestCase(APITestCase):
         response = self.client.patch(self.block_url)
         self.assertEqual(
             response.status_code, status.HTTP_200_OK
-        )  # ✅ Still a success response
+        )  # Still a success response
 
         self.regular_user.refresh_from_db()
-        self.assertTrue(self.regular_user.is_blocked)  # ✅ Should still be blocked
+        self.assertTrue(self.regular_user.is_blocked)  # Should still be blocked
 
     def test_unblocking_already_unblocked_user_does_not_change_state(self):
         """Unblocking an already unblocked user should not change state"""
@@ -141,10 +141,10 @@ class AdminUserActionsTestCase(APITestCase):
         response = self.client.patch(self.unblock_url)
         self.assertEqual(
             response.status_code, status.HTTP_200_OK
-        )  # ✅ Still a success response
+        )  # Still a success response
 
         self.regular_user.refresh_from_db()
-        self.assertFalse(self.regular_user.is_blocked)  # ✅ Should still be unblocked
+        self.assertFalse(self.regular_user.is_blocked)  # Should still be unblocked
 
     def test_activating_already_active_user_does_not_change_state(self):
         """Activating an already active user should not change state"""
@@ -153,10 +153,10 @@ class AdminUserActionsTestCase(APITestCase):
         response = self.client.patch(self.activate_url)
         self.assertEqual(
             response.status_code, status.HTTP_200_OK
-        )  # ✅ Still a success response
+        )  # Still a success response
 
         self.regular_user.refresh_from_db()
-        self.assertTrue(self.regular_user.is_active)  # ✅ Should still be active
+        self.assertTrue(self.regular_user.is_active)  # Should still be active
 
     def test_blocking_non_existent_user_fails(self):
         """Trying to block a non-existent user should return 404"""
