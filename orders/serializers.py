@@ -77,7 +77,6 @@ class StudentOrderHistorySerializer(serializers.ModelSerializer):
 
 
 class AdminOrderItemSerializer(serializers.ModelSerializer):
-    course = serializers.StringRelatedField()
     instructor = serializers.StringRelatedField()
 
     class Meta:
