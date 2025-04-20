@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import OtpVerification, SocialProfile, User
+from .models import OtpVerification, SocialProfile, User, FCMToken, Notification
 
 # Register your models here.
 
@@ -25,3 +25,5 @@ class CustomUserAdmin(UserAdmin):
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(SocialProfile)
 admin.site.register(OtpVerification)
+admin.site.register(FCMToken)
+admin.site.register(Notification)

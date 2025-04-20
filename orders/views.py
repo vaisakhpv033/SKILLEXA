@@ -5,17 +5,20 @@ from rest_framework import status
 from rest_framework.response import Response
 from .utils import create_order, verify_signature
 from rest_framework.exceptions import ValidationError
-from .models import Payments, Order
+from .models import Payments, Order, OrderItem
 from cart.models import Cart
 from students.permissions import IsStudent
-from .serializers import CreateOrderSerializer, OrderSerializer, StudentOrderHistorySerializer, AdminOrderHistorySerializer
+from .serializers import CreateOrderSerializer, OrderSerializer, StudentOrderHistorySerializer, AdminOrderHistorySerializer, CourseRefundSerializer
 from students.models import Enrollments
 from rest_framework import generics, permissions
+from rest_framework.generics import GenericAPIView
+from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
 
 client = razorpay.Client(auth=(RZP_KEY_ID, RZP_KEY_SECRET))
 
 class CreateOrderView(APIView):
-    permission_classes = [IsStudent]
+    permission_classes = [IsAuthenticated, IsStudent]
 
     def post(self, request):
         serializer = CreateOrderSerializer(data=request.data)
@@ -144,3 +147,48 @@ class AdminOrderHistoryView(generics.ListAPIView):
 
     def get_queryset(self):
         return Order.objects.exclude(status=Order.OrderStatus.PENDING).select_related("user", "payment").prefetch_related("items", "items__course", "items__instructor")
+    
+
+
+class CourseRefundView(GenericAPIView):
+    """
+    Allows a student to request a refund for a specific course (order item).
+    On success:
+      - Processes the refund via OrderItem.initiate_refund()
+      - Removes the course from the student's enrollments
+    """
+
+    serializer_class = CourseRefundSerializer
+    permission_classes = [IsAuthenticated, IsStudent]
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True) 
+
+        item = OrderItem.objects.select_for_update().get(
+            id=serializer.validated_data['order_item_id']
+        )
+
+        try:
+            item.initiate_refund() 
+        except ValueError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Remove enrollment 
+        Enrollments.objects.filter(
+            student=request.user,
+            course=item.course
+        ).delete()
+
+        return Response(
+            {
+                "message": "Refund processed successfully",
+                "order_item_id": item.id,
+                "refunded_amount": str(item.refund_amount),
+            },
+            status=status.HTTP_200_OK
+        )

@@ -11,6 +11,7 @@ from .views import (
     RegisterUserView,
     ResendOTPView,
     UserProfileView,
+    FirebaseTokenAddView
 )
 
 urlpatterns = [
@@ -24,4 +25,5 @@ urlpatterns = [
     path("forgot-password/otp/", ForgotPasswordOTPView.as_view(), name="forgot-otp"),
     path("forgot-password/", ForgotPasswordResetView.as_view(), name="forgot-password"),
     path("profile/", UserProfileView.as_view(), name="profile"),
+    path('fcm-token/', FirebaseTokenAddView.as_view(), name='fcm-token')
 ]

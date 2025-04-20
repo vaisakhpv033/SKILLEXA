@@ -2,8 +2,10 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db import models, IntegrityError
+from django.db import models, IntegrityError, transaction
 from django.utils import timezone
+from django.db.models import F 
+from wallet.models import WalletTransaction
 
 
 class Payments(models.Model):
@@ -222,6 +224,8 @@ class OrderItem(models.Model):
             self.price = self.course.price
 
     def calculate_earnings(self):
+        if self.is_refunded:
+            return
         effective_price = self.price - self.discount
         self.instructor_earning = (effective_price * Decimal("0.5")).quantize(
             Decimal("0.01")
@@ -240,27 +244,58 @@ class OrderItem(models.Model):
         self.apply_lock_period()
         super().save(*args, **kwargs)
 
+    @transaction.atomic
     def initiate_refund(self):
         """
         Process the refund to the users's wallet and reverse instructor earnings.
         """
-        if not self.is_refunded and timezone.now() <= self.created_at + timedelta(
-            days=14, hours=23, minutes=59
-        ):
-            self.is_refunded = True
-            self.refund_amount = self.price - self.discount
-            self.refund_initiated_at = timezone.now()
 
-            # Refund to user wallet
-            self.order.user.wallet.refund(
-                self.refund_amount, order=self.order, description="Refund Completed"
-            )
+        if self.is_refunded:
+            raise ValueError("Already refunded")
+        
+        # check the time window
+        deadline = self.created_at + timedelta(days=14)
+        if timezone.now() > deadline:
+            raise ValueError("Refund period has expired")
+        
+        # mark refund in orderitem
+        self.is_refunded = True
+        self.refund_amount = (self.price - self.discount).quantize(Decimal("0.01"))
+        now = timezone.now()
+        self.refund_initiated_at = now 
+        self.refund_completed_at = now 
+        self.save(update_fields=[
+            "is_refunded", "refund_amount", "refund_initiated_at", "refund_completed_at"
+        ])
 
-            # Reverse instructor earnings if locked
-            self.instructor.wallet.locked_balance -= self.instructor_earning
-            self.instructor_earning = 0
-            self.admin_earning = 0
-            self.save()
+        # Refund to student wallet
+        self.order.user.wallet.refund(
+            self.refund_amount,
+            order=self.order,
+            description=f"Refund for {self.course_title}"
+        )
+
+        # Reverse instructor's locked earnings 
+        locked_to_reverse = self.instructor_earning
+        instructor_wallet = self.instructor.wallet
+        instructor_wallet.locked_balance = F("locked_balance") - locked_to_reverse
+        instructor_wallet.save(update_fields=['locked_balance'])
+
+        # Zero out earnings on the orderitem
+        self.instructor_earning = Decimal("0.00")
+        self.admin_earning = Decimal("0.00")
+        self.save(update_fields=["instructor_earning", "admin_earning"])
+
+        # Log a cancel transaction for the instructor
+        WalletTransaction.objects.create(
+            wallet=instructor_wallet,
+            transaction_type=WalletTransaction.TransactionChoices.CANCEL,
+            amount = locked_to_reverse,
+            description =  f"Reversal of earnings for refunded course {self.course_title}",
+            order = self.order,
+            status = WalletTransaction.TransactionStatus.COMPLETED
+        )   
+        
 
     def unlock_instructor_earnings(self):
         """

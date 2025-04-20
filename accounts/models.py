@@ -224,3 +224,22 @@ class OtpVerification(models.Model):
 
     def __str__(self):
         return f"OTP for {self.user.email} - {self.otp} (Purpose: {self.purpose}, Expires: {self.expires_at})"
+
+
+class FCMToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now=True)
+
+
+    def __str__(self):
+        return f"{self.user}"
+    
+class Notification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    notification = models.JSONField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user}"

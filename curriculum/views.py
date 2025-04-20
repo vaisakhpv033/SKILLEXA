@@ -12,6 +12,8 @@ from .serializers import (
     )
 from rest_framework.permissions import AllowAny
 from .mixins import InstructorOwnedContentMixin
+from students.models import Enrollments
+from students.permissions import IsStudent
 
 
 
@@ -37,6 +39,20 @@ class SectionViewSet(InstructorOwnedContentMixin, ModelViewSet):
         Custom route to list all sections of a particular course.
         """
         sections = self.queryset.filter(course_id=course_id, course__instructor=request.user).prefetch_related('lessons__quizzes__questions__answer_options')
+        serializer = SectionDetailReadSerializer(sections, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='enrolled-course/(?P<course_id>[^/.]+)', permission_classes=[IsStudent])
+    def list_enrolled_course(self, request, course_id=None):
+        """
+        Custom route to list the curriculum details of a student's enrolled course
+        """
+        try:
+            user = request.user
+            Enrollments.objects.get(student=user, course__id=course_id)
+        except Enrollments.DoesNotExist:
+            return Response({"detail": "Enrollment not found."}, status=404)
+        sections = self.queryset.filter(course_id=course_id).prefetch_related('lessons__quizzes__questions__answer_options')
         serializer = SectionDetailReadSerializer(sections, many=True)
         return Response(serializer.data)
     

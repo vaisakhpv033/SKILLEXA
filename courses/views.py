@@ -2,6 +2,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from accounts.models import User
@@ -40,11 +41,39 @@ class CourseViewSet(viewsets.ModelViewSet):
             elif getattr(self.request.user, "role", False) == User.INSTRUCTOR:
                 return Course.objects.filter(instructor=self.request.user)
         return Course.objects.filter(status=Course.CourseStatus.PUBLISHED)
+    
+    def perform_destroy(self, instance):
+        if instance.instructor != self.request.user:
+            raise PermissionDenied("You can only delete your own courses.")
+        if instance.status != Course.CourseStatus.DRAFT:
+            raise ValidationError("You can only delete draft courses.")
+        super().perform_destroy(instance)
 
     @action(detail=False, methods=["get"], permission_classes=[permissions.AllowAny])
     def published(self, request):
-        """Endpoint to get only published courses."""
+        """
+        Endpoint to get published courses with optional filters:
+        - ?level=1
+        - ?category=3
+        - ?subcategory=5
+        """
+        level = request.query_params.get("level")
+        category = request.query_params.get("category")
+        subcategory = request.query_params.get("subcategory")
+
+        # Base queryset: only published courses
         queryset = Course.objects.filter(status=Course.CourseStatus.PUBLISHED)
+
+        if level:
+            queryset = queryset.filter(level=level)
+
+        if subcategory:
+            queryset = queryset.filter(topic_id=subcategory)
+        elif category:
+            # Find all subcategories and nested subcategories under this category
+            subcategories = Topics.objects.filter(Q(parent_id=category) | Q(parent__parent_id=category)).values_list("id", flat=True)
+            queryset = queryset.filter(topic_id__in=subcategories)
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 

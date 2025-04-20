@@ -7,7 +7,7 @@ from rest_framework_simplejwt.serializers import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import OtpVerification, User
+from .models import OtpVerification, User, FCMToken
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -246,7 +246,11 @@ class UserProfileListSerializer(serializers.ModelSerializer):
             "bio",
         ]
 
+class FCMTokenSerializer(serializers.ModelSerializer):
 
+    class Meta:
+        model = FCMToken 
+        fields = ['token']
 
 
 class UserMiniSerializer(serializers.ModelSerializer):

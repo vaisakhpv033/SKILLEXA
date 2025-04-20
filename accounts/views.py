@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .models import OtpVerification, User
+from .models import OtpVerification, User, FCMToken
 from .serializers import (
     CustomTokenObtainPairSerializer,
     CustomTokenRefreshSerializer,
@@ -19,6 +19,7 @@ from .serializers import (
     OTPVerificationSerializer,
     UserProfileListSerializer,
     UserSerializer,
+    FCMTokenSerializer,
 )
 from .tasks import send_forgot_password_otp_email, send_otp_email
 from .throttles import LoginAttemptThrottle, OTPRequestThrottle
@@ -230,3 +231,31 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class FirebaseTokenAddView(generics.CreateAPIView):
+    """
+    API View for token adding for the push notifications
+
+    """
+
+    serializer_class = FCMTokenSerializer
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        token = request.data.get('token')
+        if not token:
+            return Response(
+                {'message': "Token is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        FCMToken.objects.create(
+            user = request.user,
+            token = token 
+        )
+        return Response(
+            {'message': "FCM Token Created"},
+            status=status.HTTP_201_CREATED
+        )
+
+

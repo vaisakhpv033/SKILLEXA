@@ -111,7 +111,7 @@ class Wallet(models.Model):
         self.locked_balance += amount
         self.save()
         self.add_transaction(
-            WalletTransaction.TransactionChoices.DEPOSIT,
+            WalletTransaction.TransactionChoices.LOCKED,
             amount=amount,
             description=description,
             order=order,
@@ -202,6 +202,8 @@ class WalletTransaction(models.Model):
     class TransactionChoices(models.TextChoices):
         DEPOSIT = "deposit", "Deposit"
         WITHDRAW = "withdraw", "Withdraw"
+        CANCEL = "cancel", "Cancel"
+        LOCKED = "locked", "Locked"
         REFUND = "refund", "Refund"
         PURCHASE = "purchase", "Purchase"
 
@@ -251,3 +253,6 @@ class WalletTransaction(models.Model):
             timestamp = timezone.now().strftime("%y%m%d%H%M%S")
             self.transaction_no = f"SKEXA-{timestamp}-{unique_id}"
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.wallet.user}"

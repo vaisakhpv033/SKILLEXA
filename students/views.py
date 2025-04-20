@@ -13,6 +13,8 @@ from .serializers import StudentResetPasswordSerializer
 from .models import Enrollments
 from .serializers import EnrolledCourseSerializer
 
+from accounts.utils import send_push_notification
+
 
 class StudentResetPasswordOTPView(APIView):
     """API for Instructors to request OTP for password reset"""
@@ -63,4 +65,5 @@ class EnrolledCoursesView(APIView):
         user = request.user
         enrollments = Enrollments.objects.select_related("course").filter(student=user)
         serializer = EnrolledCourseSerializer(enrollments, many=True)
+        send_push_notification(user=request.user, title="testing ", body="important message")
         return Response(serializer.data, status=status.HTTP_200_OK)
