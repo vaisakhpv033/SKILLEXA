@@ -6,6 +6,8 @@ from .views import (
     AdminUserListView,
     BlockUserView,
     UnblockUserView,
+    AdminDashboardView,
+    AdminOrderRevenueStats
 )
 
 urlpatterns = [
@@ -20,4 +22,6 @@ urlpatterns = [
         ActivateUserView.as_view(),
         name="admin-activate-user",
     ),
+    path("dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
+    path("dashboard/order-stats/", AdminOrderRevenueStats.as_view(), name="admin-revenue-stats"),
 ]

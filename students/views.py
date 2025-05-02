@@ -50,6 +50,7 @@ class StudentResetPasswordView(generics.GenericAPIView):
         )
         if serializer.is_valid():
             serializer.save()
+            send_push_notification(user=request.user, title="Password Changed Successfully", body="You've successfully updated your Skillexa account password.")
             return Response(
                 {"message": "Password Reset Successfully"}, status=status.HTTP_200_OK
             )
@@ -65,5 +66,4 @@ class EnrolledCoursesView(APIView):
         user = request.user
         enrollments = Enrollments.objects.select_related("course").filter(student=user)
         serializer = EnrolledCourseSerializer(enrollments, many=True)
-        send_push_notification(user=request.user, title="testing ", body="important message")
         return Response(serializer.data, status=status.HTTP_200_OK)

@@ -229,8 +229,10 @@ class OtpVerification(models.Model):
 class FCMToken(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     token = models.CharField(max_length=500)
-    created_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ('user', 'token')
 
     def __str__(self):
         return f"{self.user}"
@@ -239,7 +241,10 @@ class Notification(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     notification = models.JSONField()
     is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.user}"

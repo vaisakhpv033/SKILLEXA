@@ -36,3 +36,15 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "date_joined",
         ]
+
+
+class AdminDashboardSerializer(serializers.Serializer):
+    total_students = serializers.IntegerField()
+    active_students = serializers.IntegerField()
+    total_instructors = serializers.IntegerField()
+    active_instructors = serializers.IntegerField()
+    published_courses = serializers.IntegerField()
+    pending_courses = serializers.IntegerField()
+    total_enrollments = serializers.IntegerField()
+    cancelled_enrollments = serializers.IntegerField()
+    total_revenue = serializers.IntegerField()

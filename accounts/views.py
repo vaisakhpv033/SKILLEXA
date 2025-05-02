@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from accounts.utils import send_push_notification
 
 from .models import OtpVerification, User, FCMToken
 from .serializers import (
@@ -218,6 +219,7 @@ class ForgotPasswordResetView(APIView):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+            send_push_notification(user=request.user, title="Password Changed Successfully", body="The password for your Skillexa account has been updated. If this wasn't you, please contact support.")
             return Response(
                 {"message": "Password reset successful."}, status=status.HTTP_200_OK
             )
@@ -233,10 +235,11 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
+
 class FirebaseTokenAddView(generics.CreateAPIView):
     """
-    API View for token adding for the push notifications
-
+    API View for adding a Firebase token for push notifications.
+    Supports multiple devices per user but avoids duplicate (user, token) entries.
     """
 
     serializer_class = FCMTokenSerializer
@@ -249,13 +252,16 @@ class FirebaseTokenAddView(generics.CreateAPIView):
                 {'message': "Token is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        FCMToken.objects.create(
-            user = request.user,
-            token = token 
+        
+        _, created = FCMToken.objects.get_or_create(
+            user=request.user,
+            token=token
         )
-        return Response(
-            {'message': "FCM Token Created"},
-            status=status.HTTP_201_CREATED
-        )
+        
+        message = "FCM Token Created" if created else "FCM Token Already Exists"
 
+        return Response(
+            {'message': message},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
 
