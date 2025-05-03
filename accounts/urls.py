@@ -1,5 +1,6 @@
-from django.urls import path
+from django.urls import path, include
 from rest_framework_simplejwt.views import TokenBlacklistView
+from rest_framework.routers import DefaultRouter
 
 from .views import (
     AccountVerifyOTPView,
@@ -11,8 +12,12 @@ from .views import (
     RegisterUserView,
     ResendOTPView,
     UserProfileView,
-    FirebaseTokenAddView
+    FirebaseTokenAddView,
+    NotificationViewSet,
 )
+
+router = DefaultRouter()
+router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path("login/", CustomTokenObtainPairView.as_view(), name="login"),
@@ -25,5 +30,6 @@ urlpatterns = [
     path("forgot-password/otp/", ForgotPasswordOTPView.as_view(), name="forgot-otp"),
     path("forgot-password/", ForgotPasswordResetView.as_view(), name="forgot-password"),
     path("profile/", UserProfileView.as_view(), name="profile"),
-    path('fcm-token/', FirebaseTokenAddView.as_view(), name='fcm-token')
+    path('fcm-token/', FirebaseTokenAddView.as_view(), name='fcm-token'),
+    path('', include(router.urls)),
 ]

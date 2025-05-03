@@ -4,13 +4,15 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 
 from accounts.models import User
 from instructor.permissions import IsInstructor
 
-from .models import Course, Topics
-from .permissions import IsAdminInstructor, IsAdminUser
-from .serializers import CourseSerializer, TopicsSerializer
+from .models import Course, Topics, Comments
+from .permissions import IsAdminInstructor, IsAdminUser, IsEnrolledOrInstructorOrAuthor
+from .serializers import CourseSerializer, TopicsSerializer, CommentSerializer
+from accounts.tasks import send_push_notification_task
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -111,3 +113,61 @@ class TopicsViewSet(viewsets.ModelViewSet):
         topic = get_object_or_404(Topics, pk=kwargs["pk"])
         serializer = self.get_serializer(topic)
         return Response(serializer.data)
+
+
+
+class CommentViewSet(viewsets.ModelViewSet):
+    serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated, IsEnrolledOrInstructorOrAuthor]
+
+    def get_queryset(self):
+        return Comments.objects.select_related("user", "course", "parent").prefetch_related("replies")
+    
+    def list(self, request, *args, **kwargs):
+        course_id = request.query_params.get("course")
+        if not course_id:
+            return Response({"detail": "Missing course ID in query parameter ?course="}, status=400)
+        
+        top_level_comments = self.get_queryset().filter(course_id=course_id, parent__isnull=True)
+        serializer = self.get_serializer(top_level_comments, many=True)
+        return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        course = serializer.validated_data.get("course")
+        user = self.request.user
+
+        # check if user is enrolled or instructor 
+        is_authorized = course.instructor == user or course.enrollments.filter(student=user).exists()
+
+        if not is_authorized:
+            raise PermissionDenied("You are not allowed to comment on this course")
+
+        comment = serializer.save(user=user)
+
+        
+        # if instructor, notify all enrolled students
+        is_instructor = course.instructor == user
+        if is_instructor:
+
+
+            enrolled_students = course.enrollments.select_related("student").all()
+            for enrollment in enrolled_students:
+                student = enrollment.student
+                send_push_notification_task.delay(
+                    student.id,
+                    f"New message in {course.title}",
+                    f"{user.full_name} (instructor) replied in the course discussion.",
+                    {
+                        "course_id": str(course.id),
+                        "comment_id": str(comment.id)
+                    }
+                )
+        else:
+            # if student, notify instructor
+            print("hello", course.instructor.id, course.title, user.full_name)
+            send_push_notification_task.delay(
+                course.instructor.id,
+                f"New message in {course.title}",
+                f"{user.full_name} commented in the course discussion.",
+            )
+        

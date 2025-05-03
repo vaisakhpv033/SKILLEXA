@@ -3,7 +3,7 @@ import logging
 from firebase_admin import credentials, messaging, initialize_app
 from decouple import config
 from django.contrib.auth import get_user_model
-from accounts.models import FCMToken, Notification
+from accounts.models import FCMToken
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -26,55 +26,36 @@ def get_firebase_app():
             raise
     return _firebase_app
 
-def send_push_notification(user, title, body, data={}, is_async=True):
-    def _send():
-        try:
-            app = get_firebase_app()
-            tokens = list(FCMToken.objects.filter(user=user).values_list('token', flat=True))
+def send_fcm_notification(user, title, body, data=None):
+    data = data or {}
 
-            if not tokens:
-                logger.info(f"No FCM tokens found for user {user.id}")
-                return
+    # Fetch tokens
+    tokens = list(FCMToken.objects.filter(user=user).values_list('token', flat=True))
+    if not tokens:
+        logger.info(f"No FCM tokens found for user {user.id}")
+        return
 
-            notification = messaging.Notification(
-                title=title,
-                body=body
-            )
+    try:
+        app = get_firebase_app()
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(title=title, body=body),
+            data={k: str(v) for k, v in data.items()},
+            tokens=tokens
+        )
 
-            message = messaging.MulticastMessage(
-                notification=notification,
-                data={k: str(v) for k, v in data.items()},
-                tokens=tokens
-            )
+        response = messaging.send_each_for_multicast(message, app=app)
 
-            response = messaging.send_each_for_multicast(message, app=app)
+        # Clean up invalid tokens
+        invalid_tokens = [
+            tokens[i]
+            for i, resp in enumerate(response.responses)
+            if not resp.success and isinstance(resp.exception, messaging.UnregisteredError)
+        ]
+        if invalid_tokens:
+            FCMToken.objects.filter(user=user, token__in=invalid_tokens).delete()
+            logger.info(f"Removed {len(invalid_tokens)} invalid tokens for user {user.id}")
 
-            # Cleanup invalid tokens
-            invalid_tokens = [
-                tokens[i]
-                for i, resp in enumerate(response.responses)
-                if not resp.success and isinstance(resp.exception, messaging.UnregisteredError)
-            ]
-            if invalid_tokens:
-                FCMToken.objects.filter(user=user, token__in=invalid_tokens).delete()
-                logger.info(f"Removed {len(invalid_tokens)} invalid tokens for user {user.id}")
+        logger.info(f"Notification sent to {response.success_count} devices for user {user.id}")
 
-            # Save the notification regardless of push success
-            Notification.objects.create(
-                user=user,
-                notification={
-                    "title": title,
-                    "body": body,
-                    **data
-                }
-            )
-            logger.info(f"Notification sent to {response.success_count} devices for user {user.id}")
-
-        except Exception as e:
-            logger.exception("Failed to send push notification")
-
-    if is_async:
-        from .tasks import send_push_notification_task
-        send_push_notification_task.delay(user.id, title, body, data)
-    else:
-        _send()
+    except Exception as e:
+        logger.exception("Failed to send push notification")

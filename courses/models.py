@@ -172,3 +172,62 @@ class CourseDetail(models.Model):
 
     def __str__(self):
         return f"{self.course.title} - {self.get_detail_type_display()}"
+
+
+
+
+
+class Comments(models.Model):
+    """
+    Represents a comment or a reply in the discussion section of a course.
+
+    Each comment is associated with a user and a course. Top-level comments have `parent=None`,
+    while replies reference another comment via the `parent` field. The `is_instructor` flag
+    automatically indicates if the commenter is the instructor of the course.
+
+    Fields:
+        user (ForeignKey): The user who posted the comment.
+        course (ForeignKey): The course this comment is associated with.
+        parent (ForeignKey): Optional. Points to another comment if this is a reply.
+        comment (CharField): The text content of the comment.
+        is_instructor (BooleanField): True if the commenter is the course instructor.
+        created_at (DateTimeField): Timestamp when the comment was created.
+        updated_at (DateTimeField): Timestamp when the comment was last updated.
+
+    Meta:
+        - Orders comments by newest first (`-created_at`).
+        - Indexes on course, parent, and creation date for optimized lookups.
+
+    Usage:
+        - Retrieve top-level comments: `Comments.objects.filter(course=course, parent__isnull=True)`
+        - Retrieve replies: `comment.replies.all()`
+    """
+
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="comments")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="replies",
+    )
+    comment = models.CharField(max_length=500)
+    is_instructor = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Comments"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email}"
+    
+    def save(self, *args, **kwargs):
+        if self.course and self.user:
+            self.is_instructor = (self.course.instructor == self.user)
+        super().save(*args, **kwargs)

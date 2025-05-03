@@ -7,7 +7,7 @@ from rest_framework_simplejwt.serializers import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import OtpVerification, User, FCMToken
+from .models import OtpVerification, User, FCMToken, Notification
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -263,3 +263,10 @@ class UserMiniSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip()
+    
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at']

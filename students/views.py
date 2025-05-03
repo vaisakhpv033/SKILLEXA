@@ -13,7 +13,7 @@ from .serializers import StudentResetPasswordSerializer
 from .models import Enrollments
 from .serializers import EnrolledCourseSerializer
 
-from accounts.utils import send_push_notification
+from accounts.tasks import send_push_notification_task
 
 
 class StudentResetPasswordOTPView(APIView):
@@ -50,7 +50,7 @@ class StudentResetPasswordView(generics.GenericAPIView):
         )
         if serializer.is_valid():
             serializer.save()
-            send_push_notification(user=request.user, title="Password Changed Successfully", body="You've successfully updated your Skillexa account password.")
+            send_push_notification_task.delay(request.user.id, "Password Changed Successfully", "You've successfully updated your Skillexa account password.")
             return Response(
                 {"message": "Password Reset Successfully"}, status=status.HTTP_200_OK
             )

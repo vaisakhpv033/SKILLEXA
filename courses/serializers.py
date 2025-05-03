@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Course, CourseDetail, PriceLevel, Topics
+from .models import Course, CourseDetail, PriceLevel, Topics, Comments
 
 
 class CourseDetailSerializer(serializers.ModelSerializer):
@@ -137,3 +137,33 @@ class TopicsSerializer(serializers.ModelSerializer):
         if self.instance and self.instance.id == value.id:
             raise serializers.ValidationError("A category cannot be its own parent.")
         return value
+
+
+class RecursiveCommentSerializer(serializers.Serializer):
+    def to_representation(self, value):
+        serializer = CommentSerializer(value, context=self.context)
+        return serializer.data
+
+class CommentSerializer(serializers.ModelSerializer):
+    replies = RecursiveCommentSerializer(many=True, read_only=True)
+    user_full_name = serializers.SerializerMethodField()
+    user_profile_picture = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comments
+        fields = [
+            "id", "user", "course", "parent", "comment",
+            "is_instructor", "created_at", "updated_at", 
+            "user_full_name", "user_profile_picture", "replies",
+        ]
+
+        read_only_fields = [
+            "user", "is_instructor", "created_at", "updated_at", 
+            "user_full_name", "user_profile_picture", "replies", 
+            ]
+
+    def get_user_full_name(self, obj):
+        return obj.user.full_name
+
+    def get_user_profile_picture(self, obj):
+        return obj.user.profile_picture

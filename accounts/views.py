@@ -1,15 +1,15 @@
 from django.conf import settings
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from rest_framework import generics, status
+from rest_framework import generics, status, viewsets, permissions
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from accounts.utils import send_push_notification
+from accounts.tasks import send_push_notification_task
 
-from .models import OtpVerification, User, FCMToken
+from .models import OtpVerification, User, FCMToken, Notification
 from .serializers import (
     CustomTokenObtainPairSerializer,
     CustomTokenRefreshSerializer,
@@ -21,6 +21,7 @@ from .serializers import (
     UserProfileListSerializer,
     UserSerializer,
     FCMTokenSerializer,
+    NotificationSerializer,
 )
 from .tasks import send_forgot_password_otp_email, send_otp_email
 from .throttles import LoginAttemptThrottle, OTPRequestThrottle
@@ -218,8 +219,9 @@ class ForgotPasswordResetView(APIView):
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            send_push_notification(user=request.user, title="Password Changed Successfully", body="The password for your Skillexa account has been updated. If this wasn't you, please contact support.")
+            user = serializer.save()
+            
+            send_push_notification_task.delay(user.id, "Password Changed Successfully", "The password for your Skillexa account has been updated. If this wasn't you, please contact support.")
             return Response(
                 {"message": "Password reset successful."}, status=status.HTTP_200_OK
             )
@@ -265,3 +267,15 @@ class FirebaseTokenAddView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Return only notifications belonging to the authenticated user
+        return Notification.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Automatically set the user to the authenticated user
+        serializer.save(user=self.request.user)
