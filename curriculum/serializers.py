@@ -11,7 +11,7 @@ class SectionSerializer(serializers.ModelSerializer):
 class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lessons
-        fields = ['id', 'title', 'content', 'video_url', 'video_duration', 'section', 'order']
+        fields = ['id', 'title', 'content', 'document_url', 'video_url', 'video_duration', 'section', 'order']
 
 
 class QuizSerializer(serializers.ModelSerializer):
@@ -79,7 +79,7 @@ class LessonReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lessons
-        fields = ['id', 'title', 'content', 'video_url', 'video_duration', 'section', 'order', 'quizzes']
+        fields = ['id', 'title', 'content', 'document_url', 'video_url', 'video_duration', 'section', 'order', 'quizzes']
 
 class SectionDetailReadSerializer(serializers.ModelSerializer):
     lessons = LessonReadSerializer(many=True, read_only=True)

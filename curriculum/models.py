@@ -46,6 +46,7 @@ class Lessons(models.Model):
 
     title = models.CharField(max_length=100)
     content = models.TextField(blank=True, null=True)
+    document_url = models.URLField(blank=True, null=True)
     video_url = models.URLField(blank=True, null=True)
     video_duration = models.PositiveIntegerField(blank=True, null=True)
     section = models.ForeignKey(
